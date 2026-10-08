@@ -1,0 +1,41 @@
+services:
+  # --- BASE DE DATOS PARA NEXTCLOUD ---
+  nextcloud-db:
+    image: lscr.io/linuxserver/mariadb:latest
+    container_name: nextcloud-db
+    environment:
+      - PUID=1000
+      - PGID=989
+      - TZ=Europe/Madrid
+      - MYSQL_ROOT_PASSWORD=nextcloud123  # Cambia esto
+      - MYSQL_DATABASE=nextcloud
+      - MYSQL_USER=nextcloud
+      - MYSQL_PASSWORD=nextcloud123       # Cambia esto (misma que arriba)
+    volumes:
+      - ./config/mariadb:/config
+    networks:
+      - nextcloud_net
+    restart: unless-stopped
+
+  # --- LA RED SOCIAL Y NUBE (NEXTCLOUD) ---
+  nextcloud:
+    image: lscr.io/linuxserver/nextcloud:latest
+    container_name: nextcloud
+    environment:
+      - PUID=1000
+      - PGID=989
+      - TZ=Europe/Madrid
+    volumes:
+      - ./config/nextcloud:/config
+      - /home/emi/nextcloud_data:/data  # <--- Aquí se guardarán las fotos y archivos
+    ports:
+      - 8443:443
+    depends_on:
+      - nextcloud-db
+    networks:
+      - nextcloud_net
+    restart: unless-stopped
+
+networks:
+  nextcloud_net:
+    name: nextcloud_net

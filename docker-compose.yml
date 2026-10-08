@@ -1,0 +1,162 @@
+services:
+  # Actúa como router y firewall. Oculta tu IP real conectándose a una VPN.
+  gluetun:
+    image: qmcgaw/gluetun
+    container_name: gluetun
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    environment:
+      - VPN_SERVICE_PROVIDER=protonvpn
+      - VPN_TYPE=wireguard
+      - WIREGUARD_PRIVATE_KEY=TU_CLAVE_PRIVADA_AQUI # <-- CLAVE RETIRADA
+      - SERVER_COUNTRIES=Switzerland
+      - VPN_PORT_FORWARDING=on
+      - VPN_PORT_FORWARDING_PROVIDER=protonvpn
+      - FIREWALL_OUTBOUND_SUBNETS=172.16.0.0/12,192.168.1.0/24
+      - DNS_KEEP_NAMESERVER=on
+      - DNS_UPSTREAM_PLAIN_ADDRESSES=1.1.1.1:53
+      - VPN_PORT_FORWARDING_UP_COMMAND=/bin/sh -c 'wget -qO- --retry-connrefused --post-data "json={\"listen_port\":{{PORT}}}" http://127.0.0.1:5080/api/v2/app/setPreferences'
+    networks:
+      - mynetwork
+    ports:
+      - 5080:5080   # Web UI qBittorrent
+      - 9696:9696   # Web UI Prowlarr
+      - 6881:6881   # Torrent Listen Port TCP
+      - 6881:6881/udp # Torrent Listen Port UDP
+    restart: unless-stopped
+
+
+  # Cliente torrent. 
+  qbittorrent:
+    container_name: qbittorrent
+    image: lscr.io/linuxserver/qbittorrent:latest
+    network_mode: "service:gluetun" 
+    environment:
+      - PUID=1000
+      - PGID=989
+      - TZ=Europe/Madrid
+      - WEBUI_PORT=5080
+    volumes:
+      - ./config/qbittorrent:/config
+      - /home/emi/peliculasyseries:/data
+    depends_on:
+      - gluetun
+    restart: unless-stopped
+
+  # Indexer
+  prowlarr:
+    container_name: prowlarr
+    image: lscr.io/linuxserver/prowlarr:latest
+    network_mode: "service:gluetun" 
+    environment:
+      - PUID=1000
+      - PGID=989
+      - TZ=Europe/Madrid
+    volumes:
+      - ./config/prowlarr:/config
+    depends_on:
+      - gluetun
+    restart: unless-stopped
+
+  # Gestor de películas
+  radarr:
+    container_name: radarr
+    image: lscr.io/linuxserver/radarr:latest
+    networks:
+      - mynetwork
+    environment:
+      - PUID=1000
+      - PGID=989
+      - TZ=Europe/Madrid
+    ports:
+      - 7878:7878
+    volumes:
+      - ./config/radarr:/config
+      - /home/emi/peliculasyseries:/data
+    restart: unless-stopped
+
+  # Gestor de series
+  sonarr:
+    image: lscr.io/linuxserver/sonarr:latest
+    container_name: sonarr
+    networks:
+      - mynetwork
+    environment:
+      - PUID=1000
+      - PGID=989
+      - TZ=Europe/Madrid
+    volumes:
+      - ./config/sonarr:/config
+      - /home/emi/peliculasyseries:/data
+    ports:
+      - 8989:8989
+    restart: unless-stopped
+
+  # Subtítulos
+  bazarr:
+    image: lscr.io/linuxserver/bazarr:latest
+    container_name: bazarr
+    networks:
+      - mynetwork
+    environment:
+      - PUID=1000
+      - PGID=989
+      - TZ=Europe/Madrid
+    volumes:
+      - ./config/bazarr:/config
+      - /home/emi/peliculasyseries:/data
+    ports:
+      - 6767:6767
+    restart: unless-stopped
+
+  # Para resolver el cloudflare
+  flaresolverr:
+    image: ghcr.io/flaresolverr/flaresolverr:latest
+    container_name: flaresolverr
+    ports:
+     - 8191:8191
+    environment:
+      - LOG_LEVEL=info
+      - TZ=Europe/Madrid
+    networks:
+      - mynetwork
+    restart: unless-stopped
+
+  # Reproductor y lo que se me muestra
+  jellyfin:
+    image: lscr.io/linuxserver/jellyfin:latest
+    container_name: jellyfin
+    networks:
+      - mynetwork
+    environment:
+      - PUID=1000
+      - PGID=989
+      - TZ=Europe/Madrid
+    volumes:
+      - ./config/jellyfin:/config
+      - /home/emi/peliculasyseries:/data
+    ports:
+      - 8096:8096
+    restart: unless-stopped
+
+  # Para añadir más fácil las películas y las series
+  jellyseerr:
+    image: fallenbagel/jellyseerr:latest
+    container_name: jellyseerr
+    environment:
+      - LOG_LEVEL=debug
+      - TZ=Europe/Madrid
+      - PORT=5055
+    networks:
+      - mynetwork
+    ports:
+      - 5055:5055
+    volumes:
+      - ./config/jellyseerr:/app/config
+    restart: unless-stopped
+
+networks:
+  mynetwork:
+    external: false
