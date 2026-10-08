@@ -1,0 +1,41 @@
+services:
+  # Base de datos
+  nextcloud-db:
+    image: lscr.io/linuxserver/mariadb:latest
+    container_name: nextcloud-db
+    environment:
+      - PUID=1000
+      - PGID=989
+      - TZ=Europe/Madrid
+      - MYSQL_ROOT_PASSWORD= #Contraseña del root de la base de datos
+      - MYSQL_DATABASE=nextcloud
+      - MYSQL_USER= #usuario de la base de datos
+      - MYSQL_PASSWORD= #Contraseña del usuario de la base de datos   
+    volumes:
+      - ./config/mariadb:/config
+    networks:
+      - nextcloud_net
+    restart: unless-stopped
+
+  # Nube
+  nextcloud:
+    image: lscr.io/linuxserver/nextcloud:latest
+    container_name: nextcloud
+    environment:
+      - PUID=1000
+      - PGID=989
+      - TZ=Europe/Madrid
+    volumes:
+      - ./config/nextcloud:/config
+      - /home/emi/nextcloud_data:/data  
+    ports:
+      - 8443:443
+    depends_on:
+      - nextcloud-db
+    networks:
+      - nextcloud_net
+    restart: unless-stopped
+
+networks:
+  nextcloud_net:
+    name: nextcloud_net
